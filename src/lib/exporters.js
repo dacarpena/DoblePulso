@@ -123,13 +123,25 @@ export function download(filename, content, type = "text/plain;charset=utf-8") {
   }, 500);
 }
 
-export async function shareJson(data) {
-  const file = new File([JSON.stringify(data, null, 2)], "doble-pulso-export.json", { type: "application/json" });
-  if (navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: "Doble Pulso", text: "Export completo del test" });
-    return true;
+export async function saveOrShare(filename, content, type = "text/plain;charset=utf-8") {
+  const blob = content instanceof Blob ? content : new Blob([content], { type });
+  if (typeof navigator !== "undefined" && navigator.canShare && navigator.share) {
+    try {
+      const file = new File([blob], filename, { type });
+      if (navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: "Doble Pulso" });
+        return "shared";
+      }
+    } catch (e) {
+      if (e.name === "AbortError") return "cancelled";
+    }
   }
-  return false;
+  download(filename, blob, type);
+  return "downloaded";
+}
+
+export async function shareJson(data) {
+  return saveOrShare("doble-pulso-export.json", JSON.stringify(data, null, 2), "application/json");
 }
 
 export async function buildZipBlob(session, results) {
@@ -152,10 +164,10 @@ export async function buildZipBlob(session, results) {
 
 export async function downloadZip(session, results) {
   const blob = await buildZipBlob(session, results);
-  download("doble-pulso-export-completo.zip", blob, "application/zip");
+  return saveOrShare("doble-pulso-export-completo.zip", blob, "application/zip");
 }
 
-export function exportPng(session, results) {
+export async function exportPng(session, results) {
   const canvas = document.createElement("canvas");
   canvas.width = 1080;
   canvas.height = 1920;
@@ -230,14 +242,9 @@ export function exportPng(session, results) {
   ctx.font = "500 24px system-ui, -apple-system, sans-serif";
   ctx.fillText("Resumen visual: el ZIP incluye todos los datos completos.",70,1840);
 
-  canvas.toBlob(blob => {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "doble-pulso-resumen.png";
-    a.click();
-    setTimeout(()=>URL.revokeObjectURL(url), 500);
-  });
+  const blob = await new Promise(resolve => canvas.toBlob(resolve, "image/png"));
+  if (!blob) throw new Error("No se pudo generar la imagen");
+  return saveOrShare("doble-pulso-resumen.png", blob, "image/png");
 }
 
 function bar(ctx,x,y,w,h,val){

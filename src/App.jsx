@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { QUESTIONS, TEST_MODES, getQuestionsForMode } from "./data/questions.js";
 import { scoreSession, answerLabel } from "./lib/scoring.js";
-import { buildFullExport, comparisonsCsv, download, downloadZip, exportPng, responsesCsv, shareJson, textReport } from "./lib/exporters.js";
+import { buildFullExport, comparisonsCsv, downloadZip, exportPng, responsesCsv, saveOrShare, textReport } from "./lib/exporters.js";
 import "./styles.css";
 
 const uid = () => Math.random().toString(36).slice(2, 10).toUpperCase();
@@ -567,6 +567,23 @@ async function tryCopy(text) {
   return false;
 }
 
+function ExportButton({ run, variant = "secondary", children }) {
+  const [state, setState] = useState("idle");
+  const handle = async () => {
+    setState("working");
+    try {
+      const result = await run();
+      setState(result === "cancelled" ? "idle" : "ok");
+    } catch (err) {
+      console.error(err);
+      setState("fail");
+    }
+    setTimeout(() => setState(s => s === "working" ? s : "idle"), 2000);
+  };
+  const label = state === "working" ? "Preparando…" : state === "ok" ? "✓ Listo" : state === "fail" ? "Error, reintenta" : children;
+  return <button className={`${variant} ${state === "ok" ? "copied" : ""}`} onClick={handle} disabled={state === "working"}>{label}</button>;
+}
+
 function CopyButton({ text, label }) {
   const [state, setState] = useState("idle");
   const handle = async () => {
@@ -715,18 +732,14 @@ function Results({ session, results, fullExport, onDelete, onStartDiagnostics })
 
     {tab === "export" && <>
       <h2>Exportar todo</h2>
-      <p>El ZIP incluye JSON completo, CSV de respuestas, CSV de comparaciones, TXT de informe y metadata. Es la opción recomendada para guardar todo.</p>
+      <p>En iPhone se abre la hoja para compartir (Guardar en Archivos, AirDrop…). En ordenador se descarga directamente. El ZIP incluye JSON completo, ambos CSV, el TXT de informe y la metadata.</p>
       <div className="exportGrid">
-        <button className="primary" onClick={() => downloadZip(session, results)}>Descargar ZIP completo</button>
-        <button className="secondary" onClick={() => download("doble-pulso-export-completo.json", JSON.stringify(fullExport, null, 2), "application/json")}>JSON completo</button>
-        <button className="secondary" onClick={() => download("doble-pulso-respuestas.csv", responsesCsv(session, session.mode), "text/csv;charset=utf-8")}>CSV respuestas</button>
-        <button className="secondary" onClick={() => download("doble-pulso-comparaciones.csv", comparisonsCsv(results), "text/csv;charset=utf-8")}>CSV comparaciones</button>
-        <button className="secondary" onClick={() => download("doble-pulso-informe.txt", textReport(session, results), "text/plain;charset=utf-8")}>TXT informe</button>
-        <button className="secondary" onClick={() => exportPng(session, results)}>PNG resumen</button>
-        <button className="ghost" onClick={async () => {
-          const ok = await shareJson(fullExport);
-          if (!ok) download("doble-pulso-export-completo.json", JSON.stringify(fullExport, null, 2), "application/json");
-        }}>Compartir JSON en iOS</button>
+        <ExportButton variant="primary" run={() => downloadZip(session, results)}>ZIP completo</ExportButton>
+        <ExportButton run={() => saveOrShare("doble-pulso-export-completo.json", JSON.stringify(fullExport, null, 2), "application/json")}>JSON completo</ExportButton>
+        <ExportButton run={() => saveOrShare("doble-pulso-respuestas.csv", responsesCsv(session, session.mode), "text/csv;charset=utf-8")}>CSV respuestas</ExportButton>
+        <ExportButton run={() => saveOrShare("doble-pulso-comparaciones.csv", comparisonsCsv(results), "text/csv;charset=utf-8")}>CSV comparaciones</ExportButton>
+        <ExportButton run={() => saveOrShare("doble-pulso-informe.txt", textReport(session, results), "text/plain;charset=utf-8")}>TXT informe</ExportButton>
+        <ExportButton run={() => exportPng(session, results)}>PNG resumen</ExportButton>
         <button className="ghost danger" onClick={onDelete}>Eliminar sala y respuestas</button>
       </div>
     </>}
