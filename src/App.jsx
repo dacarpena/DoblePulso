@@ -132,7 +132,8 @@ export default function App() {
     ws.onclose = () => setStatus(current => ["expired","deleted"].includes(current) ? current : "disconnected");
     ws.onerror = () => setStatus("pin_error");
     return () => ws.close();
-  }, [roomId, role, name, pin, local]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roomId, role, pin, local]);
 
   function send(type, payload = {}) {
     if (local) {
