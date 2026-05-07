@@ -528,9 +528,9 @@ function ProgressHeader({ session, role, status, progressA, progressB, baseUrl, 
       </div>
     </div>
     <div className="copyGrid">
-      <button className="tiny" onClick={() => copyText(baseUrl)}>Copiar enlace</button>
-      <button className="tiny" onClick={() => copyText(pin)}>Copiar PIN</button>
-      <button className="tiny" onClick={() => copyText(inviteUrl)}>Copiar enlace+PIN</button>
+      <CopyButton text={baseUrl} label="Copiar enlace" />
+      <CopyButton text={pin} label="Copiar PIN" />
+      <CopyButton text={inviteUrl} label="Copiar enlace+PIN" />
       <button className="tiny danger" onClick={onDelete}>Eliminar sala</button>
     </div>
     <div className="people">
@@ -540,12 +540,43 @@ function ProgressHeader({ session, role, status, progressA, progressB, baseUrl, 
   </section>;
 }
 
-async function copyText(text) {
-  try {
-    await navigator.clipboard.writeText(text || "");
-  } catch {
-    alert(text || "");
+async function tryCopy(text) {
+  const value = text || "";
+  if (navigator.clipboard && window.isSecureContext) {
+    try {
+      await navigator.clipboard.writeText(value);
+      return true;
+    } catch {}
   }
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = value;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.top = "0";
+    ta.style.left = "0";
+    ta.style.opacity = "0";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, value.length);
+    const ok = document.execCommand("copy");
+    document.body.removeChild(ta);
+    if (ok) return true;
+  } catch {}
+  return false;
+}
+
+function CopyButton({ text, label }) {
+  const [state, setState] = useState("idle");
+  const handle = async () => {
+    const ok = await tryCopy(text);
+    setState(ok ? "ok" : "fail");
+    setTimeout(() => setState("idle"), 1600);
+    if (!ok) prompt("Copia manualmente:", text || "");
+  };
+  const display = state === "ok" ? "✓ Copiado" : state === "fail" ? "Copia manual…" : label;
+  return <button className={`tiny ${state === "ok" ? "copied" : ""}`} onClick={handle}>{display}</button>;
 }
 
 function formatExpiry(expiresAt) {
