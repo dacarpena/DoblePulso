@@ -365,15 +365,7 @@ export default function App() {
   }
 
   if (!name) {
-    return <Shell>
-      <section className="card">
-        <div className="eyebrow">Sala {roomId} · Persona {role}</div>
-        <h1>Nombre o alias</h1>
-        <p>Usa un alias si quieres. El test no necesita datos reales.</p>
-        <input className="input" value={name} onChange={e => setName(e.target.value)} placeholder={`Persona ${role}`} />
-        <button className="primary" onClick={() => updateName(name || `Persona ${role}`)}>Entrar</button>
-      </section>
-    </Shell>;
+    return <Shell><NameEntry roomId={roomId} role={role} onSubmit={updateName} /></Shell>;
   }
 
   const progressA = progress(session, questions, "A");
@@ -486,6 +478,25 @@ function reduceLocal(session, msg, role, name) {
     next.completedAt = null;
   }
   return next;
+}
+
+function NameEntry({ roomId, role, onSubmit }) {
+  const [draft, setDraft] = useState("");
+  const submit = () => onSubmit(draft.trim() || `Persona ${role}`);
+  return <section className="card">
+    <div className="eyebrow">Sala {roomId} · Persona {role}</div>
+    <h1>Nombre o alias</h1>
+    <p>Usa un alias si quieres. El test no necesita datos reales.</p>
+    <input
+      className="input"
+      value={draft}
+      onChange={e => setDraft(e.target.value)}
+      onKeyDown={e => { if (e.key === "Enter") submit(); }}
+      placeholder={`Persona ${role}`}
+      autoFocus
+    />
+    <button className="primary" onClick={submit}>Entrar</button>
+  </section>;
 }
 
 function Shell({ children }) {
