@@ -47,9 +47,20 @@ const blankSession = (mode = "balanced", ttlHours = 24, flowMode = "free", delet
   completed: { A: false, B: false }
 });
 
-function wsUrl(roomId, role, name, pin) {
+function wsUrl(roomId, clientId, name, pin) {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${location.host}/api/rooms/${roomId}/ws?participant=${role}&pin=${encodeURIComponent(pin || "")}&name=${encodeURIComponent(name || "")}`;
+  return `${proto}//${location.host}/api/rooms/${roomId}/ws?clientId=${encodeURIComponent(clientId)}&pin=${encodeURIComponent(pin || "")}&name=${encodeURIComponent(name || "")}`;
+}
+
+function ensureClientId() {
+  let id = localStorage.getItem("dp_client_id");
+  if (!id) {
+    id = (typeof crypto !== "undefined" && crypto.randomUUID)
+      ? crypto.randomUUID()
+      : (Math.random().toString(36).slice(2) + Date.now().toString(36));
+    localStorage.setItem("dp_client_id", id);
+  }
+  return id;
 }
 
 async function apiCreateRoom(config) {
@@ -67,7 +78,10 @@ export default function App() {
   const initialRoom = params.get("room");
   const initialPin = params.get("pin") || "";
   const [roomId, setRoomId] = useState(initialRoom);
-  const [role, setRole] = useState(params.get("role") === "B" ? "B" : params.get("role") === "A" ? "A" : null);
+  const [role, setRole] = useState(null);
+  const clientId = useMemo(ensureClientId, []);
+  const [joinRoomId, setJoinRoomId] = useState("");
+  const [joinPin, setJoinPin] = useState("");
   const [name, setName] = useState(localStorage.getItem("dp_name") || "");
   const [mode, setMode] = useState(localStorage.getItem("dp_mode") || "balanced");
   const [pin, setPin] = useState(initialPin || makePin());
@@ -101,20 +115,25 @@ export default function App() {
   }, [bothDone]);
 
   useEffect(() => {
-    if (!roomId || !role || local || !pin) return;
+    if (!roomId || local || !pin) return;
     setStatus("connecting");
-    const ws = new WebSocket(wsUrl(roomId, role, name || `Persona ${role}`, pin));
+    let connectionRole = null;
+    const ws = new WebSocket(wsUrl(roomId, clientId, name || "", pin));
     socketRef.current = ws;
 
     ws.onopen = () => setStatus("connected");
     ws.onmessage = event => {
       const msg = JSON.parse(event.data);
+      if (msg.type === "assigned") {
+        connectionRole = msg.role;
+        setRole(msg.role);
+      }
       if (msg.type === "state") {
         setSession(msg.session);
         setStatus("connected");
         const qs = questionsForSession(msg.session, msg.session.mode);
-        if (msg.session.flowMode !== "together") {
-          const mine = msg.session.answers?.[role] || {};
+        if (connectionRole && msg.session.flowMode !== "together") {
+          const mine = msg.session.answers?.[connectionRole] || {};
           const first = qs.findIndex(q => !mine[q.id]);
           setCurrentIndex(first >= 0 ? first : Math.max(0, qs.length - 1));
         }
@@ -133,7 +152,7 @@ export default function App() {
     ws.onerror = () => setStatus("pin_error");
     return () => ws.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId, role, pin, local]);
+  }, [roomId, pin, local, clientId]);
 
   function send(type, payload = {}) {
     if (local) {
@@ -153,7 +172,8 @@ export default function App() {
       ttlHours,
       flowMode,
       deleteAfterComplete,
-      questionIds: questionIdsForMode(mode)
+      questionIds: questionIdsForMode(mode),
+      clientId
     };
     localStorage.setItem("dp_mode", mode);
     localStorage.setItem("dp_ttl", String(ttlHours));
@@ -164,13 +184,11 @@ export default function App() {
     try {
       const data = await apiCreateRoom(config);
       setRoomId(data.roomId);
-      setRole("A");
       setSession(null);
       const u = new URL(location.href);
       u.search = "";
       u.searchParams.set("room", data.roomId);
       u.searchParams.set("pin", data.pin || cleanPin);
-      u.searchParams.set("role", "A");
       history.replaceState(null, "", u.toString());
     } catch {
       const fallback = blankSession(mode, ttlHours, flowMode, deleteAfterComplete);
@@ -191,21 +209,41 @@ export default function App() {
     setSession(s);
   }
 
-  function chooseRole(p) {
-    setRole(p);
-    const u = new URL(location.href);
-    u.searchParams.set("role", p);
-    if (pin) u.searchParams.set("pin", pin);
-    history.replaceState(null, "", u.toString());
-  }
-
   function confirmPin() {
     const u = new URL(location.href);
     u.searchParams.set("pin", pin);
-    if (role) u.searchParams.set("role", role);
+    u.searchParams.delete("role");
     history.replaceState(null, "", u.toString());
     setSession(null);
     setStatus("connecting");
+  }
+
+  function joinExistingRoom() {
+    const id = joinRoomId.trim().toUpperCase();
+    const cleanPin = joinPin.replace(/\D/g, "").slice(0, 8);
+    if (!id || cleanPin.length < 4) return;
+    setRoomId(id);
+    setPin(cleanPin);
+    setSession(null);
+    setRole(null);
+    setStatus("connecting");
+    const u = new URL(location.href);
+    u.search = "";
+    u.searchParams.set("room", id);
+    u.searchParams.set("pin", cleanPin);
+    history.replaceState(null, "", u.toString());
+  }
+
+  function backToHome() {
+    setRoomId(null);
+    setPin(makePin());
+    setSession(null);
+    setRole(null);
+    setStatus("idle");
+    setLocal(false);
+    setJoinRoomId("");
+    setJoinPin("");
+    history.replaceState(null, "", location.pathname);
   }
 
   function updateName(value) {
@@ -313,17 +351,22 @@ export default function App() {
         <button className="primary" onClick={createRoom}>Crear sala online</button>
         <button className="secondary" onClick={() => joinLocalAs("A")}>Probar local en este navegador</button>
       </section>
-    </Shell>;
-  }
 
-  if (!role) {
-    return <Shell>
       <section className="card">
-        <div className="eyebrow">Sala {roomId}</div>
-        <h1>Elige tu lado</h1>
-        <p>Entrarás en la misma sala que la otra persona. Las respuestas se sincronizan y los resultados se revelan cuando ambos terminan.</p>
-        <button className="primary" onClick={() => chooseRole("A")}>Entrar como Persona A</button>
-        <button className="secondary" onClick={() => chooseRole("B")}>Entrar como Persona B</button>
+        <div className="eyebrow">¿Te han compartido una sala?</div>
+        <h2>Unirme a sala existente</h2>
+        <p>Introduce el ID de sala y el PIN que te ha pasado la otra persona. Si abriste el enlace completo, ya estás dentro y no necesitas este paso.</p>
+        <div className="joinGrid">
+          <label>
+            <span>ID de sala</span>
+            <input className="input" value={joinRoomId} onChange={e => setJoinRoomId(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 12))} placeholder="p. ej. ABC123" autoCapitalize="characters" />
+          </label>
+          <label>
+            <span>PIN</span>
+            <input className="input pinInput" inputMode="numeric" pattern="[0-9]*" value={joinPin} onChange={e => setJoinPin(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="PIN" />
+          </label>
+        </div>
+        <button className="primary" onClick={joinExistingRoom} disabled={!joinRoomId.trim() || joinPin.length < 4}>Entrar en la sala</button>
       </section>
     </Shell>;
   }
@@ -336,6 +379,7 @@ export default function App() {
         <p>El PIN evita que cualquiera que vea el ID de sala pueda entrar. Si te han pasado el enlace completo, debería aparecer ya rellenado.</p>
         <input className="input pinInput" inputMode="numeric" pattern="[0-9]*" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="PIN" />
         <button className="primary" onClick={confirmPin} disabled={pin.length < 4}>Entrar en la sala</button>
+        <button className="ghost" onClick={backToHome}>Volver al inicio</button>
       </section>
     </Shell>;
   }
@@ -345,15 +389,16 @@ export default function App() {
       <section className="card">
         <div className="eyebrow">Sala {roomId}</div>
         <h1>No se pudo entrar</h1>
-        <p>Puede ser un PIN incorrecto, una sala caducada o un problema temporal de conexión.</p>
+        <p>Puede ser un PIN incorrecto, un ID de sala equivocado, una sala caducada, una sala llena (ya hay dos personas), o un problema temporal de conexión.</p>
         <input className="input pinInput" inputMode="numeric" pattern="[0-9]*" value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="PIN" />
         <button className="primary" onClick={confirmPin} disabled={pin.length < 4}>Reintentar con este PIN</button>
+        <button className="ghost" onClick={backToHome}>Volver al inicio</button>
       </section>
     </Shell>;
   }
 
-  if (!session) {
-    return <Shell><section className="card"><h1>Conectando sala…</h1><p>{status}</p></section></Shell>;
+  if (!session || !role) {
+    return <Shell><section className="card"><h1>Conectando sala…</h1><p>{status}</p><button className="ghost" onClick={backToHome}>Cancelar</button></section></Shell>;
   }
 
   if (isDeleted) {

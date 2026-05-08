@@ -91,6 +91,7 @@ export class Room {
           A: { name: "Persona A", connected: false, lastSeen: null },
           B: { name: "Persona B", connected: false, lastSeen: null }
         },
+        clients: body.clientId ? { [body.clientId]: "A" } : {},
         answers: { A: {}, B: {} },
         completed: { A: false, B: false },
         eventLog: [],
@@ -139,20 +140,34 @@ export class Room {
         return new Response("Invalid PIN", { status: 403 });
       }
 
+      const clientId = url.searchParams.get("clientId") || "";
+      if (!clientId) {
+        return new Response("Missing clientId", { status: 400 });
+      }
+      session.clients ||= {};
+      let participant = session.clients[clientId];
+      if (!participant) {
+        const taken = new Set(Object.values(session.clients));
+        if (!taken.has("A")) participant = "A";
+        else if (!taken.has("B")) participant = "B";
+        else return new Response("Sala llena", { status: 409 });
+        session.clients[clientId] = participant;
+      }
+
       const pair = new WebSocketPair();
       const [client, server] = Object.values(pair);
       server.accept();
 
-      const participant = url.searchParams.get("participant") === "B" ? "B" : "A";
-      const name = url.searchParams.get("name") || `Persona ${participant}`;
+      const urlName = url.searchParams.get("name") || "";
       const conn = { ws: server, participant };
       this.sessions.add(conn);
 
       session.participants[participant] ||= {};
-      session.participants[participant].name = name;
+      if (urlName) session.participants[participant].name = urlName;
       session.participants[participant].connected = true;
       session.participants[participant].lastSeen = new Date().toISOString();
       await this.save(session);
+      try { server.send(JSON.stringify({ type: "assigned", role: participant })); } catch {}
       this.broadcast();
 
       server.addEventListener("message", async event => {
@@ -348,7 +363,7 @@ export class Room {
 }
 
 function publicSession(session) {
-  const { security, ...safe } = session || {};
+  const { security, clients, ...safe } = session || {};
   return safe;
 }
 
