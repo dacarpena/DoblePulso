@@ -463,7 +463,7 @@ export default function App() {
 
   return <Shell>
     <ProgressHeader session={session} role={role} status={status} progressA={progressA} progressB={progressB} baseUrl={baseUrl} inviteUrl={inviteUrl} pin={pin} onDelete={deleteRoom} onUpdateName={updateName} />
-    <section className="card questionCard">
+    <section className="card questionCard" key={currentQuestion?.id || displayIndex}>
       <div className="questionMeta">
         <span>{currentQuestion.dimension}</span>
         <span>{displayIndex + 1}/{questions.length}</span>
@@ -583,7 +583,7 @@ function ProgressHeader({ session, role, status, progressA, progressB, baseUrl, 
     <div className="roomLine">
       <div>
         <b>Sala {session.id}</b>
-        <span>{status === "connected" ? "online" : status} · PIN {pin || "—"} · caduca {formatExpiry(session.expiresAt)}</span>
+        <span data-status={status}>{status === "connected" ? "online" : status} · PIN {pin || "—"} · caduca {formatExpiry(session.expiresAt)}</span>
       </div>
     </div>
     <div className="copyGrid">
@@ -708,6 +708,31 @@ function formatExpiry(expiresAt) {
 
 function Progress({ n }) {
   return <div className="progress"><i style={{ width: `${n}%` }} /><span>{n}%</span></div>;
+}
+
+function AnimatedNumber({ value, duration = 900 }) {
+  const [display, setDisplay] = useState(0);
+  const fromRef = useRef(0);
+  useEffect(() => {
+    const reduce = typeof matchMedia !== "undefined" && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduce) { setDisplay(value); fromRef.current = value; return; }
+    const start = performance.now();
+    const from = fromRef.current;
+    const to = Number.isFinite(value) ? value : 0;
+    if (from === to) return;
+    let raf;
+    const tick = t => {
+      const p = Math.min(1, (t - start) / duration);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const next = Math.round(from + (to - from) * eased);
+      setDisplay(next);
+      if (p < 1) raf = requestAnimationFrame(tick);
+      else fromRef.current = to;
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [value, duration]);
+  return display;
 }
 
 function progress(session, questions, p) {
@@ -848,7 +873,7 @@ function Results({ session, results, fullExport, onDelete, onStartDiagnostics })
 function Dashboard({ results }) {
   return <>
     <div className="scoreGrid">
-      <div className="mainScore"><b>{results.overall}</b><span>/100</span><em>{results.label}</em></div>
+      <div className="mainScore"><b><AnimatedNumber value={results.overall} duration={1100} /></b><span>/100</span><em>{results.label}</em></div>
       <Metric label="Química" value={results.indices.chemistry} />
       <Metric label="Sostenibilidad" value={results.indices.sustainability} />
       <Metric label="Seguridad" value={results.indices.security} />
@@ -914,7 +939,7 @@ function SeparatedAnswers({ session }) {
 function Metric({ label, value, inverse = false }) {
   return <div className="metric">
     <span>{label}</span>
-    <b>{value}</b>
+    <b><AnimatedNumber value={value} /></b>
     <Progress n={inverse ? Math.max(0, 100 - value) : value} />
   </div>;
 }

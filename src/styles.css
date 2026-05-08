@@ -582,3 +582,185 @@ small.muted {
     grid-template-columns: repeat(4, 1fr);
   }
 }
+
+/* ─────────── animaciones ─────────── */
+
+@keyframes cardEnter {
+  from { opacity: 0; transform: translateY(10px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes questionEnter {
+  from { opacity: 0; transform: translateX(18px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes barFill {
+  from { width: 0 !important; }
+}
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes pickPop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.025); }
+  100% { transform: scale(1); }
+}
+@keyframes connDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(115,230,165,.55); }
+  50% { box-shadow: 0 0 0 7px rgba(115,230,165,0); }
+}
+@keyframes ambientFloat {
+  0%, 100% { transform: translate(0,0) scale(1); }
+  50% { transform: translate(8px,-12px) scale(1.04); }
+}
+
+.card {
+  animation: cardEnter .4s cubic-bezier(.2,.8,.2,1) both;
+}
+.questionCard {
+  animation: questionEnter .35s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.steps > div {
+  animation: fadeUp .45s cubic-bezier(.2,.8,.2,1) both;
+}
+.steps > div:nth-child(1) { animation-delay: .05s; }
+.steps > div:nth-child(2) { animation-delay: .12s; }
+.steps > div:nth-child(3) { animation-delay: .19s; }
+.steps > div:nth-child(4) { animation-delay: .26s; }
+.steps > div:nth-child(5) { animation-delay: .33s; }
+
+.revealSteps span {
+  animation: fadeUp .55s cubic-bezier(.2,.8,.2,1) both;
+}
+.revealSteps span:nth-child(1) { animation-delay: .15s; }
+.revealSteps span:nth-child(2) { animation-delay: .55s; }
+.revealSteps span:nth-child(3) { animation-delay: .95s; }
+.revealSteps span:nth-child(4) { animation-delay: 1.35s; }
+
+.scoreGrid .metric {
+  animation: fadeUp .45s cubic-bezier(.2,.8,.2,1) both;
+}
+.scoreGrid .metric:nth-child(2) { animation-delay: .05s; }
+.scoreGrid .metric:nth-child(3) { animation-delay: .10s; }
+.scoreGrid .metric:nth-child(4) { animation-delay: .15s; }
+.scoreGrid .metric:nth-child(5) { animation-delay: .20s; }
+.scoreGrid .metric:nth-child(6) { animation-delay: .25s; }
+.scoreGrid .metric:nth-child(7) { animation-delay: .30s; }
+.scoreGrid .metric:nth-child(8) { animation-delay: .35s; }
+.scoreGrid .metric:nth-child(9) { animation-delay: .40s; }
+
+.dimensionRow {
+  animation: fadeUp .4s cubic-bezier(.2,.8,.2,1) both;
+}
+.dimensionList .dimensionRow:nth-child(1) { animation-delay: .04s; }
+.dimensionList .dimensionRow:nth-child(2) { animation-delay: .08s; }
+.dimensionList .dimensionRow:nth-child(3) { animation-delay: .12s; }
+.dimensionList .dimensionRow:nth-child(4) { animation-delay: .16s; }
+.dimensionList .dimensionRow:nth-child(5) { animation-delay: .20s; }
+.dimensionList .dimensionRow:nth-child(6) { animation-delay: .24s; }
+.dimensionList .dimensionRow:nth-child(7) { animation-delay: .28s; }
+.dimensionList .dimensionRow:nth-child(8) { animation-delay: .32s; }
+.dimensionList .dimensionRow:nth-child(9) { animation-delay: .36s; }
+.dimensionList .dimensionRow:nth-child(10) { animation-delay: .40s; }
+.dimensionList .dimensionRow:nth-child(11) { animation-delay: .44s; }
+.dimensionList .dimensionRow:nth-child(12) { animation-delay: .48s; }
+
+.progress i, .bar i {
+  transition: width .9s cubic-bezier(.2,.8,.2,1);
+  animation: barFill 1s cubic-bezier(.2,.8,.2,1) both;
+}
+
+.answer {
+  transition: transform .15s ease-out, background .2s, border-color .2s, box-shadow .2s;
+}
+.answer:hover {
+  transform: translateY(-1px);
+}
+.answer:active {
+  transform: scale(.985);
+}
+.answer.picked {
+  animation: pickPop .35s ease-out;
+}
+
+.mode {
+  transition: transform .15s ease-out, background .2s, border-color .2s;
+}
+.mode:hover { transform: translateY(-1px); }
+.mode:active { transform: scale(.99); }
+
+.tabs button {
+  transition: background .2s, color .2s, border-color .2s, transform .12s;
+}
+.tabs button:active { transform: scale(.97); }
+
+.tiny, .primary, .secondary, .ghost {
+  transition: background .2s, color .2s, border-color .2s, transform .12s, box-shadow .2s;
+}
+.primary:not(:disabled):active,
+.secondary:not(:disabled):active,
+.ghost:not(:disabled):active,
+.tiny:not(:disabled):active { transform: scale(.98); }
+
+.roomLine span::before {
+  content: "";
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #999;
+  margin-right: 6px;
+  vertical-align: middle;
+}
+.roomLine span[data-status="connected"]::before {
+  background: #73e6a5;
+  animation: connDot 2.2s ease-in-out infinite;
+}
+.roomLine span[data-status="connecting"]::before,
+.roomLine span[data-status="creating"]::before {
+  background: #ffd166;
+}
+.roomLine span[data-status="disconnected"]::before,
+.roomLine span[data-status="pin_error"]::before {
+  background: #ff8b8b;
+}
+
+.bigEmoji {
+  display: inline-block;
+}
+
+.hero.card::before {
+  content: "";
+  position: absolute;
+  inset: -40px -20% auto auto;
+  width: 360px;
+  height: 360px;
+  background: radial-gradient(circle, rgba(255,111,159,.18), transparent 65%);
+  pointer-events: none;
+  z-index: -1;
+  animation: ambientFloat 9s ease-in-out infinite;
+}
+.hero.card {
+  position: relative;
+  overflow: hidden;
+}
+.hero.card::after {
+  content: "";
+  position: absolute;
+  inset: auto auto -60px -10%;
+  width: 320px;
+  height: 320px;
+  background: radial-gradient(circle, rgba(139,124,255,.16), transparent 65%);
+  pointer-events: none;
+  z-index: -1;
+  animation: ambientFloat 11s ease-in-out infinite reverse;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important;
+  }
+}
