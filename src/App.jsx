@@ -296,11 +296,23 @@ export default function App() {
   const inviteUrl = roomId ? `${baseUrl}&pin=${encodeURIComponent(pin || "")}` : "";
 
   if (!roomId) {
+    const nameOk = name.trim().length > 0;
     return <Shell>
       <section className="hero card">
         <div className="eyebrow">Doble Pulso v4 · definitivo</div>
         <h1>Test romántico-afectivo simultáneo para dos móviles</h1>
         <p>Una sala compartida, dos personas respondiendo a la vez, PIN, caducidad, borrado manual, revelado completo y export ZIP con todos los datos.</p>
+
+        <h2>Tu nombre o alias</h2>
+        <p>La otra persona verá este nombre en su pantalla. Si quieres usar un alias, perfecto — el test no necesita datos reales. Podrás cambiarlo durante el test.</p>
+        <input
+          className="input"
+          value={name}
+          onChange={e => { const v = e.target.value.slice(0, 40); setName(v); localStorage.setItem("dp_name", v); }}
+          placeholder="p. ej. Dani"
+          maxLength={40}
+          autoComplete="nickname"
+        />
 
         <Onboarding />
 
@@ -348,7 +360,8 @@ export default function App() {
           Borrar automáticamente 30 minutos después de terminar ambos
         </label>
 
-        <button className="primary" onClick={createRoom}>Crear sala online</button>
+        <button className="primary" onClick={createRoom} disabled={!nameOk}>Crear sala online</button>
+        {!nameOk && <small className="muted">Pon tu nombre arriba para crear o unirte a una sala.</small>}
         <button className="secondary" onClick={() => joinLocalAs("A")}>Probar local en este navegador</button>
       </section>
 
@@ -366,7 +379,8 @@ export default function App() {
             <input className="input pinInput" inputMode="numeric" pattern="[0-9]*" value={joinPin} onChange={e => setJoinPin(e.target.value.replace(/\D/g, "").slice(0, 8))} placeholder="PIN" />
           </label>
         </div>
-        <button className="primary" onClick={joinExistingRoom} disabled={!joinRoomId.trim() || joinPin.length < 4}>Entrar en la sala</button>
+        <button className="primary" onClick={joinExistingRoom} disabled={!nameOk || !joinRoomId.trim() || joinPin.length < 4}>Entrar en la sala</button>
+        {!nameOk && <small className="muted">Recuerda poner tu nombre arriba antes de entrar.</small>}
       </section>
     </Shell>;
   }
@@ -420,14 +434,14 @@ export default function App() {
     if (!revealDone) return <Shell><RevealAnimation /></Shell>;
     const fullExport = buildFullExport(session, results, session.mode);
     return <Shell>
-      <ProgressHeader session={session} role={role} status={status} progressA={progressA} progressB={progressB} baseUrl={baseUrl} inviteUrl={inviteUrl} pin={pin} onDelete={deleteRoom} />
+      <ProgressHeader session={session} role={role} status={status} progressA={progressA} progressB={progressB} baseUrl={baseUrl} inviteUrl={inviteUrl} pin={pin} onDelete={deleteRoom} onUpdateName={updateName} />
       <Results session={session} results={results} fullExport={fullExport} onDelete={deleteRoom} onStartDiagnostics={startDiagnostics} />
     </Shell>;
   }
 
   if (ownDone) {
     return <Shell>
-      <ProgressHeader session={session} role={role} status={status} progressA={progressA} progressB={progressB} baseUrl={baseUrl} inviteUrl={inviteUrl} pin={pin} onDelete={deleteRoom} />
+      <ProgressHeader session={session} role={role} status={status} progressA={progressA} progressB={progressB} baseUrl={baseUrl} inviteUrl={inviteUrl} pin={pin} onDelete={deleteRoom} onUpdateName={updateName} />
       <section className="card waiting">
         <div className="bigEmoji">🕯️</div>
         <h1>Esperando a la otra persona</h1>
@@ -448,7 +462,7 @@ export default function App() {
   const otherAnsweredCurrent = Boolean(session.answers?.[otherRole]?.[currentQuestion?.id]);
 
   return <Shell>
-    <ProgressHeader session={session} role={role} status={status} progressA={progressA} progressB={progressB} baseUrl={baseUrl} inviteUrl={inviteUrl} pin={pin} onDelete={deleteRoom} />
+    <ProgressHeader session={session} role={role} status={status} progressA={progressA} progressB={progressB} baseUrl={baseUrl} inviteUrl={inviteUrl} pin={pin} onDelete={deleteRoom} onUpdateName={updateName} />
     <section className="card questionCard">
       <div className="questionMeta">
         <span>{currentQuestion.dimension}</span>
@@ -564,7 +578,7 @@ function Onboarding() {
   </div>;
 }
 
-function ProgressHeader({ session, role, status, progressA, progressB, baseUrl, inviteUrl, pin, onDelete }) {
+function ProgressHeader({ session, role, status, progressA, progressB, baseUrl, inviteUrl, pin, onDelete, onUpdateName }) {
   return <section className="mini card">
     <div className="roomLine">
       <div>
@@ -579,10 +593,50 @@ function ProgressHeader({ session, role, status, progressA, progressB, baseUrl, 
       <button className="tiny danger" onClick={onDelete}>Eliminar sala</button>
     </div>
     <div className="people">
-      <div className={role === "A" ? "me" : ""}><b>{session.participants.A?.name || "Persona A"}</b><Progress n={progressA} /></div>
-      <div className={role === "B" ? "me" : ""}><b>{session.participants.B?.name || "Persona B"}</b><Progress n={progressB} /></div>
+      <ParticipantRow side="A" name={session.participants?.A?.name || "Persona A"} progress={progressA} isMe={role === "A"} onEdit={role === "A" ? onUpdateName : null} />
+      <ParticipantRow side="B" name={session.participants?.B?.name || "Persona B"} progress={progressB} isMe={role === "B"} onEdit={role === "B" ? onUpdateName : null} />
     </div>
   </section>;
+}
+
+function ParticipantRow({ side, name, progress, isMe, onEdit }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(name);
+  useEffect(() => { if (!editing) setDraft(name); }, [name, editing]);
+
+  if (editing && onEdit) {
+    const save = () => {
+      const trimmed = draft.trim();
+      if (trimmed) onEdit(trimmed);
+      setEditing(false);
+    };
+    const cancel = () => { setDraft(name); setEditing(false); };
+    return <div className={isMe ? "me editingRow" : ""}>
+      <input
+        className="input nameInline"
+        value={draft}
+        onChange={e => setDraft(e.target.value.slice(0, 40))}
+        onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); save(); } else if (e.key === "Escape") cancel(); }}
+        onBlur={save}
+        autoFocus
+        maxLength={40}
+        aria-label={`Editar nombre de Persona ${side}`}
+      />
+      <Progress n={progress} />
+    </div>;
+  }
+
+  return <div className={isMe ? "me" : ""}>
+    {onEdit ? (
+      <button type="button" className="nameBtn" onClick={() => setEditing(true)} aria-label={`Cambiar tu nombre (Persona ${side})`}>
+        <b>{name}</b>
+        <span className="editHint">✎ tocar para cambiar</span>
+      </button>
+    ) : (
+      <b>{name}</b>
+    )}
+    <Progress n={progress} />
+  </div>;
 }
 
 async function tryCopy(text) {
